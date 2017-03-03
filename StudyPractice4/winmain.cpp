@@ -65,7 +65,7 @@ BOOL InitApplication(HINSTANCE hinstance)
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
 	static int x, y;
-	HDC hdc;
+	static HDC hdc;
 	PAINTSTRUCT ps;
 
 	switch (message)
@@ -76,6 +76,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 		break;
 	case WM_PAINT:
 		hdc = BeginPaint(hwnd, &ps);
+		SetMapMode(hdc, MM_ANISOTROPIC);
+		SetWindowExtEx(hdc, x, y, NULL);
+		SetViewportExtEx(hdc, x, -y, NULL);
+		SetViewportOrgEx(hdc, x / 2, y / 2, NULL);
+
 		Graph gr; gr.a = 1; gr.b = 2; gr.c = 0;
 		Draw(hdc, x, y, gr);
 		EndPaint(hwnd, &ps);
@@ -120,11 +125,6 @@ void Draw(HDC& hdc, int x, int y, Graph& gr)
 	xPoints = 10; yPoints = 5;
 	divValueX = x / (xPoints * 2);
 	divValueY = y / (yPoints * 2);
-
-	SetMapMode(hdc, MM_ANISOTROPIC);
-	SetWindowExtEx(hdc, x, y, NULL);
-	SetViewportExtEx(hdc, x, -y, NULL);
-	SetViewportOrgEx(hdc, x / 2, y / 2, NULL);
 
 	HPEN newPen = CreatePen(PS_SOLID, 2, RGB(0, 0, 0));
 	HPEN oldPen = (HPEN)SelectObject(hdc, newPen);
