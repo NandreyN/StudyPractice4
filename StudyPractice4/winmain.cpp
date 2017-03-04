@@ -76,7 +76,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 	static HDC hdc;
 	static DrawAreaInfo dAInfo;
 	PAINTSTRUCT ps;
-	static RECT allocRect, prevRect;
+	static RECT allocRect;
+	static RECT prevRect;
 	RECT clientRect;
 	static bool isPressed;
 	static Graph gr;
@@ -86,7 +87,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 		hdc = GetDC(hwnd);
 		isPressed = false;
 		gr.a = 1; gr.b = 2; gr.c = 0;
-		
+
 		break;
 	case WM_SIZE:
 		x = LOWORD(lparam);
@@ -104,31 +105,17 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 	case WM_LBUTTONDOWN:
 	{
 		isPressed = true;
-
-		POINT pt = ConvertCoordinates(LOWORD(lparam), HIWORD(lparam), x, y);
-		allocRect.left = pt.x;
-		allocRect.top = pt.y;
-		allocRect.right = pt.x;
-		allocRect.bottom = pt.y;
+		allocRect.left = LOWORD(lparam);
+		allocRect.top = HIWORD(lparam);
+		allocRect.right = allocRect.left;
+		allocRect.bottom = allocRect.top;
 		prevRect = allocRect;
-
 		break;
 	}
 	case WM_LBUTTONUP:
 	{
 		isPressed = false;
-		SetMapMode(hdc, MM_ANISOTROPIC);
-		SetWindowExtEx(hdc, x, y, NULL);
-		SetViewportExtEx(hdc, x, -y, NULL);
-		SetViewportOrgEx(hdc, x / 2, y / 2, NULL);
-		// to Remove and invalidate
-
-		FillRect(hdc, &allocRect, CreateSolidBrush(RGB(255,255,255)));
-		allocRect.left -= 2;
-		allocRect.top += 2;
-		allocRect.right += 2;
-		allocRect.bottom -= 2;
-		InvalidateRect(hwnd, &allocRect, true);
+		//InvalidateRect(hwnd, &allocRect, true);
 		break;
 	}
 	case WM_RBUTTONUP:
@@ -139,8 +126,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 		POINT clickedCoord = ConvertCoordinates(cx, cy, x, y);
 		double res = (gr.a*((double)clickedCoord.x / di.divValueX)*((double)clickedCoord.x / di.divValueX) + gr.b*((double)clickedCoord.x / di.divValueX) + gr.c);
 
-		double distance = GetDistance(cx / di.divValueX, res, cx / di.divValueX, clickedCoord.y / di.divValueY);
-		if (distance <= 0.4)
+		//double newY = (double)clickedCoord.y / di.divValueY;
+		double distance = abs(res - ((double)clickedCoord.y) / di.divValueY);
+		if (distance <= 0.3)
 		{
 			string text;
 			double t = (double)clickedCoord.x / di.divValueX;
@@ -150,20 +138,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 	}
 	case WM_MOUSEMOVE:
 	{
-		if (!isPressed) break;
-		POINT pt3 = ConvertCoordinates(LOWORD(lparam), HIWORD(lparam), x, y);
-		allocRect.right = pt3.x;
-		allocRect.bottom = pt3.y;
+		if (!isPressed) return 0;
 
+		allocRect.right = LOWORD(lparam);
+		allocRect.top = HIWORD(lparam);
 
-		FillRect(hdc, &prevRect, CreateSolidBrush(RGB(255, 255, 255)));
-		//InvalidateRect(hwnd, &prevRect, false);
-
-		Rectangle(hdc, allocRect.left, allocRect.top, allocRect.right, allocRect.bottom);
-		prevRect = allocRect;
-
-		GetClientRect(hwnd, &clientRect);
-		ValidateRect(hwnd, &clientRect);
+		POINT LT = ConvertCoordinates(allocRect.left, allocRect.top, x, y);
+		POINT RB = ConvertCoordinates(allocRect.right, allocRect.bottom, x, y);
+		ValidateRect(hwnd, NULL);
+		Rectangle(hdc,LT.x, LT.y, RB.x, RB.y);
 		break;
 	}
 
