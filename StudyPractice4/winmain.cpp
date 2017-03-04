@@ -2,18 +2,26 @@
 #include <windows.h>
 #include  <math.h>
 #include <cmath>
+#include <string>
 using namespace std;
 
 struct Graph
 {
 	int a;
-	int b; 
+	int b;
 	int c;
+};
+struct DrawAreaInfo
+{
+	int xPoints, yPoints, divValueX, divValueY, newX, newY;
 };
 BOOL InitApplication(HINSTANCE hinstance);
 BOOL InitInstance(HINSTANCE hinstance, int nCmdShow);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
-void Draw(HDC& hdc, int x ,int y, Graph& graph);
+DrawAreaInfo GetAreaInfo(int x, int y);
+DrawAreaInfo Draw(HDC& hdc, int x, int y, Graph& graph);
+POINT ConvertCoordinates(int x, int y, int widthOld, int heightOld);
+double GetDistance(int x1, int y1, int x2, int y2);
 
 int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE prevHinstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -66,26 +74,101 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
 	static int x, y;
 	static HDC hdc;
+	static DrawAreaInfo dAInfo;
 	PAINTSTRUCT ps;
-
+	static RECT allocRect, prevRect;
+	RECT clientRect;
+	static bool isPressed;
+	static Graph gr;
 	switch (message)
 	{
+	case WM_CREATE:
+		hdc = GetDC(hwnd);
+		isPressed = false;
+		gr.a = 1; gr.b = 2; gr.c = 0;
+		
+		break;
 	case WM_SIZE:
 		x = LOWORD(lparam);
 		y = HIWORD(lparam);
 		break;
 	case WM_PAINT:
-		hdc = BeginPaint(hwnd, &ps);
+	{
 		SetMapMode(hdc, MM_ANISOTROPIC);
 		SetWindowExtEx(hdc, x, y, NULL);
 		SetViewportExtEx(hdc, x, -y, NULL);
 		SetViewportOrgEx(hdc, x / 2, y / 2, NULL);
-
-		Graph gr; gr.a = 1; gr.b = 2; gr.c = 0;
-		Draw(hdc, x, y, gr);
-		EndPaint(hwnd, &ps);
+		dAInfo = Draw(hdc, x, y, gr);
 		break;
+	}
+	case WM_LBUTTONDOWN:
+	{
+		isPressed = true;
+
+		POINT pt = ConvertCoordinates(LOWORD(lparam), HIWORD(lparam), x, y);
+		allocRect.left = pt.x;
+		allocRect.top = pt.y;
+		allocRect.right = pt.x;
+		allocRect.bottom = pt.y;
+		prevRect = allocRect;
+
+		break;
+	}
+	case WM_LBUTTONUP:
+	{
+		isPressed = false;
+		SetMapMode(hdc, MM_ANISOTROPIC);
+		SetWindowExtEx(hdc, x, y, NULL);
+		SetViewportExtEx(hdc, x, -y, NULL);
+		SetViewportOrgEx(hdc, x / 2, y / 2, NULL);
+		// to Remove and invalidate
+
+		FillRect(hdc, &allocRect, CreateSolidBrush(RGB(255,255,255)));
+		allocRect.left -= 2;
+		allocRect.top += 2;
+		allocRect.right += 2;
+		allocRect.bottom -= 2;
+		InvalidateRect(hwnd, &allocRect, true);
+		break;
+	}
+	case WM_RBUTTONUP:
+	{
+		DrawAreaInfo di = GetAreaInfo(x, y);
+		int cx = LOWORD(lparam);
+		int cy = HIWORD(lparam);
+		POINT clickedCoord = ConvertCoordinates(cx, cy, x, y);
+		double res = (gr.a*((double)clickedCoord.x / di.divValueX)*((double)clickedCoord.x / di.divValueX) + gr.b*((double)clickedCoord.x / di.divValueX) + gr.c);
+
+		double distance = GetDistance(cx / di.divValueX, res, cx / di.divValueX, clickedCoord.y / di.divValueY);
+		if (distance <= 0.4)
+		{
+			string text;
+			double t = (double)clickedCoord.x / di.divValueX;
+			text += "X: " + to_string(t); text += ", Y : " + to_string(res);
+			TextOut(hdc, 0, 0, text.c_str(), text.size());
+		}
+	}
+	case WM_MOUSEMOVE:
+	{
+		if (!isPressed) break;
+		POINT pt3 = ConvertCoordinates(LOWORD(lparam), HIWORD(lparam), x, y);
+		allocRect.right = pt3.x;
+		allocRect.bottom = pt3.y;
+
+
+		FillRect(hdc, &prevRect, CreateSolidBrush(RGB(255, 255, 255)));
+		//InvalidateRect(hwnd, &prevRect, false);
+
+		Rectangle(hdc, allocRect.left, allocRect.top, allocRect.right, allocRect.bottom);
+		prevRect = allocRect;
+
+		GetClientRect(hwnd, &clientRect);
+		ValidateRect(hwnd, &clientRect);
+		break;
+	}
+
 	case WM_CLOSE:
+		ReleaseDC(hwnd, hdc);
 		DestroyWindow(hwnd);
 		break;
 	case WM_DESTROY:
@@ -119,29 +202,43 @@ BOOL InitInstance(HINSTANCE hinstance, int nCmdShow)
 	UpdateWindow(hwnd);
 	return TRUE;
 }
-void Draw(HDC& hdc, int x, int y, Graph& gr)
+POINT ConvertCoordinates(int x, int y, int widthOld, int heightOld)
+{
+	// center is (x/2, y/2)
+	POINT pt;
+	pt.x = x - widthOld / 2;
+	pt.y = heightOld / 2 - y;
+	return pt;
+}
+
+DrawAreaInfo GetAreaInfo(int x, int y)
 {
 	int xPoints, yPoints, divValueX, divValueY; // Кол-во делений
-	xPoints = 10; yPoints = 5;
+	xPoints = 5; yPoints = 10;
 	divValueX = x / (xPoints * 2);
 	divValueY = y / (yPoints * 2);
+	int newX, newY; newX = x / 2; newY = y / 2;
+	DrawAreaInfo di;
+	di.divValueX = divValueX; di.divValueY = divValueY; di.newX = newX; di.newY = newY; di.xPoints = xPoints; di.yPoints = yPoints;
+	return di;
+}
+DrawAreaInfo Draw(HDC& hdc, int x, int y, Graph& gr)
+{
+	DrawAreaInfo dai = GetAreaInfo(x, y);
 
 	HPEN newPen = CreatePen(PS_SOLID, 2, RGB(0, 0, 0));
 	HPEN oldPen = (HPEN)SelectObject(hdc, newPen);
 
-	int newX, newY; newX = x / 2; newY = y / 2;
-
-
-	MoveToEx(hdc, -newX, 0, NULL);
-	LineTo(hdc, newX, 0);
-	MoveToEx(hdc, 0, newY, NULL);
-	LineTo(hdc, 0, -newY);
+	MoveToEx(hdc, -dai.newX, 0, NULL);
+	LineTo(hdc, dai.newX, 0);
+	MoveToEx(hdc, 0, dai.newY, NULL);
+	LineTo(hdc, 0, -dai.newY);
 
 
 	DeleteObject(newPen);
 	SelectObject(hdc, oldPen);
 
-	for (int xx  = 0;  xx <= newX; xx += divValueX)
+	for (int xx = 0; xx <= dai.newX; xx += dai.divValueX)
 	{
 		MoveToEx(hdc, xx, 5, NULL);
 		LineTo(hdc, xx, -5);
@@ -149,19 +246,24 @@ void Draw(HDC& hdc, int x, int y, Graph& gr)
 		LineTo(hdc, -xx, -5);
 	}
 
-	for (int yy = 0; yy <= newY; yy += divValueY)
+	for (int yy = 0; yy <= dai.newY; yy += dai.divValueY)
 	{
 		MoveToEx(hdc, 5, yy, NULL);
 		LineTo(hdc, -5, yy);
 		MoveToEx(hdc, 5, -yy, NULL);
 		LineTo(hdc, -5, -yy);
 	}
-	MoveToEx(hdc, -newX, 0, NULL);
+	MoveToEx(hdc, -dai.newX, 0, NULL);
 	// Drawing
-	for (double xArg = -newX; xArg <= newX; xArg += 0.1)
+	for (double xArg = -dai.newX; xArg <= dai.newX; xArg += 0.1)
 	{
-		double fx = gr.a * ((xArg / divValueX) * (xArg / divValueX)) + gr.b * (xArg / divValueX) + gr.c;
-		LineTo(hdc, xArg, fx * divValueY);
+		double fx = gr.a * ((xArg / dai.divValueX) * (xArg / dai.divValueX)) + gr.b * (xArg / dai.divValueX) + gr.c;
+		LineTo(hdc, xArg, fx * dai.divValueY);
 		//SetPixel(hdc, xArg, fx * divValueY, RGB(0,0,0));
 	}
+	return dai;
+}
+double GetDistance(int x1, int y1, int x2, int y2)
+{
+	return sqrt(pow((x1 - x2), 2) + pow((y1 - y2), 2));
 }
