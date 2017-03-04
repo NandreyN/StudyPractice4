@@ -115,7 +115,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 	case WM_LBUTTONUP:
 	{
 		isPressed = false;
-		//InvalidateRect(hwnd, &allocRect, true);
+		InvalidateRect(hwnd, &allocRect, true);
 		break;
 	}
 	case WM_RBUTTONUP:
@@ -146,7 +146,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 		POINT LT = ConvertCoordinates(allocRect.left, allocRect.top, x, y);
 		POINT RB = ConvertCoordinates(allocRect.right, allocRect.bottom, x, y);
 		ValidateRect(hwnd, NULL);
+		
 		Rectangle(hdc,LT.x, LT.y, RB.x, RB.y);
+		prevRect = allocRect;
 		break;
 	}
 
